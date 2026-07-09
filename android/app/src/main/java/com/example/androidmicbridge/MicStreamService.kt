@@ -310,6 +310,8 @@ class MicStreamService : Service() {
             Log.e(TAG, "Error in audio recording loop", e)
             lastError = "Recording error: ${e.message}"
             notifyStatusChanged()
+        } finally {
+            isRecording = false
         }
     }
 

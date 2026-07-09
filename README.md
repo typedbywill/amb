@@ -96,6 +96,18 @@ miccpy --help
 - `--volume <multiplier>`: Digitally adjust gain (e.g. `--volume 1.5` to boost, `--volume 0.5` to reduce).
 - `--buffer <count>`: Set the size of the jitter buffer in packets (default: `3`).
 - `--monitor`: Enable real-time metrics showing bandwidth, buffer size, and dropped packets.
+- `--list-audio-devices`: List all available host audio output devices and exit.
+- `-o <index|name>`, `--out-device <index|name>`: Route audio to a specific playback device (by index number or name search).
+- `--virtual-mic`: Search for a virtual audio cable (like VB-Cable) and output to it automatically. If not found on Windows, the client will offer to download and run the installer for you.
+
+### Setting up a Virtual Microphone (Windows)
+
+To use your Android phone as a virtual microphone in communication apps (like Discord, Zoom, OBS, Teams, etc.):
+1. Run `miccpy --virtual-mic`.
+2. If VB-Cable is not installed, accept the prompt to download and start the setup. Accept the Windows UAC permission prompt and click **Install Driver** in the installer GUI.
+3. **Restart your computer** to register the new audio driver.
+4. Run `miccpy --virtual-mic` again (or run with USB/Wi-Fi options).
+5. In your target application (e.g., Discord or Zoom settings), select **CABLE Output (VB-Audio Virtual Cable)** as your Input Device (Microphone).
 
 ---
 
