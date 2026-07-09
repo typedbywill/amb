@@ -364,7 +364,7 @@ def main():
         print(f"Configuring Wi-Fi connection to {host}:{port}...")
 
     # Initialize audio queue and sync
-    audio_queue = queue.Queue(maxsize=100)
+    audio_queue = queue.Queue(maxsize=args.buffer + 2)
     stop_event = threading.Event()
 
     # Metrics
@@ -375,61 +375,87 @@ def main():
         'latency_ms': 0
     }
 
-    # Audio Playback Thread
+    # Audio Playback with Callback (low latency)
     def audio_play_loop():
-        # Setup sounddevice Output Stream
+        pending_pcm = bytearray()
+        buffering = True
+        
+        def callback(outdata, frames, time_info, status):
+            nonlocal pending_pcm, buffering
+            if status:
+                # Underflow/overflow warnings or other status messages
+                pass
+            
+            bytes_needed = frames * 2  # 1 channel, 16-bit = 2 bytes per sample
+            
+            # Prevent lag/latency accumulation by dropping stale packets
+            max_allowed = args.buffer + 2
+            while audio_queue.qsize() > max_allowed:
+                try:
+                    audio_queue.get_nowait()
+                except queue.Empty:
+                    break
+            
+            if buffering:
+                if audio_queue.qsize() >= args.buffer:
+                    buffering = False
+                else:
+                    outdata.fill(0)
+                    return
+            
+            # Pull packets to fulfill the needed frames
+            while len(pending_pcm) < bytes_needed:
+                try:
+                    packet = audio_queue.get_nowait()
+                    pending_pcm.extend(packet)
+                except queue.Empty:
+                    buffering = True
+                    break
+            
+            if len(pending_pcm) < bytes_needed:
+                # Underflow: fill what we have and pad with silence
+                available_samples = len(pending_pcm) // 2
+                if available_samples > 0:
+                    if args.volume != 1.0:
+                        samples = np.frombuffer(pending_pcm[:available_samples*2], dtype=np.int16).astype(np.float32)
+                        samples *= args.volume
+                        np.clip(samples, -32768, 32767, out=samples)
+                        outdata[:available_samples, 0] = samples.astype(np.int16)
+                    else:
+                        outdata[:available_samples, 0] = np.frombuffer(pending_pcm[:available_samples*2], dtype=np.int16)
+                outdata[available_samples:, 0] = 0
+                pending_pcm.clear()
+            else:
+                # Normal play
+                if args.volume != 1.0:
+                    samples = np.frombuffer(pending_pcm[:bytes_needed], dtype=np.int16).astype(np.float32)
+                    samples *= args.volume
+                    np.clip(samples, -32768, 32767, out=samples)
+                    outdata[:, 0] = samples.astype(np.int16)
+                else:
+                    outdata[:, 0] = np.frombuffer(pending_pcm[:bytes_needed], dtype=np.int16)
+                del pending_pcm[:bytes_needed]
+
+        # Open and start stream with the callback
         try:
             stream = sd.OutputStream(
                 device=out_device_id,
                 samplerate=args.rate,
                 channels=1,
                 dtype='int16',
-                latency='low'
+                latency='low',
+                callback=callback
             )
             stream.start()
         except Exception as e:
             print(f"\nAudio Device Error: Failed to open output stream: {e}")
             stop_event.set()
             return
-
-        buffering = True
-        
+            
+        # Keep thread alive until stop_event is set
         while not stop_event.is_set():
-            try:
-                # If buffering, wait until we accumulate the required buffer packets
-                if buffering:
-                    if audio_queue.qsize() >= args.buffer:
-                        buffering = False
-                    else:
-                        # Write silence while buffering to prevent sound card underflow crash
-                        silence = np.zeros(int(args.rate * 0.02), dtype=np.int16)
-                        stream.write(silence)
-                        time.sleep(0.01)
-                        continue
-
-                # Get block from queue
-                try:
-                    pcm_data = audio_queue.get(timeout=0.2)
-                except queue.Empty:
-                    # Underflow: re-enable buffering to prevent stuttering
-                    buffering = True
-                    continue
-
-                # Apply volume gain
-                if args.volume != 1.0:
-                    samples = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32)
-                    samples *= args.volume
-                    np.clip(samples, -32768, 32767, out=samples)
-                    pcm_data = samples.astype(np.int16)
-                else:
-                    pcm_data = np.frombuffer(pcm_data, dtype=np.int16)
-
-                stream.write(pcm_data)
-                
-            except Exception as e:
-                print(f"\nPlayback error: {e}")
-                break
-                
+            time.sleep(0.1)
+            
         stream.stop()
         stream.close()
 

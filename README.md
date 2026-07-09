@@ -46,7 +46,38 @@ Use your mobile device as a high-quality PC microphone over **USB** (via ADB) or
 
 ## Installation
 
-### 1. Build and Install Android App
+The easiest way to install Android Mic Bridge globally on your system is using our automatic installation scripts. They will set up the desktop client, resolve dependencies (including installing ADB locally on Windows if not present), download the APK, and add `miccpy` to your system's global `PATH`.
+
+### Quick Global Install
+
+#### Windows (PowerShell)
+Open PowerShell and run the following command:
+```powershell
+irm https://raw.githubusercontent.com/typedbywill/amb/main/install.ps1 | iex
+```
+
+#### Linux (Bash)
+Open your terminal and run:
+```bash
+curl -sSL https://raw.githubusercontent.com/typedbywill/amb/main/install.sh | bash
+```
+
+> [!NOTE]
+> Restart your terminal after installation to apply the `PATH` changes. Once done, you can run the client from anywhere by typing `miccpy`.
+
+### Manual Download & Releases
+If you prefer not to use the automated installers, you can download the assets directly from the [GitHub Releases](https://github.com/typedbywill/amb/releases) page:
+1. Go to [GitHub Releases](https://github.com/typedbywill/amb/releases).
+2. Download `app-debug.apk` and install it on your Android device (`adb install app-debug.apk`).
+3. Download the desktop client package or use the files in the repository.
+
+---
+
+### Manual Setup (Development)
+
+If you'd like to build and set up the project manually from source:
+
+#### 1. Build and Install Android App
 Ensure your Android device has **USB Debugging** enabled and is connected to your computer.
 
 From the root directory:
@@ -55,7 +86,7 @@ cd android
 ./gradlew installDebug
 ```
 
-### 2. Set Up Desktop Client Dependencies
+#### 2. Set Up Desktop Client Dependencies
 Make sure you have **Python 3.12+** installed. Install the required libraries:
 ```bash
 pip install sounddevice pyogg numpy
