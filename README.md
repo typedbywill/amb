@@ -46,7 +46,7 @@ Use your mobile device as a high-quality PC microphone over **USB** (via ADB) or
 
 ## Installation
 
-The easiest way to install Android Mic Bridge globally on your system is using our automatic installation scripts. They will set up the desktop client, resolve dependencies (including installing ADB locally on Windows if not present), download the APK, and add `miccpy` to your system's global `PATH`.
+The easiest way to install Android Mic Bridge globally on your system is using our automatic installation scripts. They will download the precompiled **Tauri Desktop GUI App** (which runs natively and includes a dark/light-theme control panel), resolve dependencies (including installing ADB locally on Windows if not present), download the Android APK, and add `miccpy` to your system's global `PATH`.
 
 ### Quick Global Install
 
@@ -56,20 +56,20 @@ Open PowerShell and run the following command:
 irm https://raw.githubusercontent.com/typedbywill/amb/main/install.ps1 | iex
 ```
 
-#### Linux (Bash)
+#### Linux & macOS (Bash)
 Open your terminal and run:
 ```bash
 curl -sSL https://raw.githubusercontent.com/typedbywill/amb/main/install.sh | bash
 ```
 
 > [!NOTE]
-> Restart your terminal after installation to apply the `PATH` changes. Once done, you can run the client from anywhere by typing `miccpy`.
+> Restart your terminal after installation to apply the `PATH` changes. Once done, you can run the client from anywhere by typing `miccpy` (this opens the modern GUI App). If you didn't have a release published yet, it will fall back to setting up the command-line Python version.
 
 ### Manual Download & Releases
-If you prefer not to use the automated installers, you can download the assets directly from the [GitHub Releases](https://github.com/typedbywill/amb/releases) page:
+If you prefer not to use the automated installers, you can download the compiled assets (Desktop GUI executables and Android APK) directly from the [GitHub Releases](https://github.com/typedbywill/amb/releases) page:
 1. Go to [GitHub Releases](https://github.com/typedbywill/amb/releases).
 2. Download `app-debug.apk` and install it on your Android device (`adb install app-debug.apk`).
-3. Download the desktop client package or use the files in the repository.
+3. Download the executable for your OS (`miccpy.exe` for Windows, `miccpy` tarball for Linux/macOS) and run it.
 
 ---
 
@@ -86,7 +86,22 @@ cd android
 ./gradlew installDebug
 ```
 
-#### 2. Set Up Desktop Client Dependencies
+#### 2. Set Up Desktop Tauri App (GUI)
+Make sure you have **Node.js** and **Rust** installed.
+
+From the root directory:
+```bash
+cd desktop-app
+npm install
+
+# Run in development mode (launches the GUI instantly)
+npm run tauri dev
+
+# Compile into a production standalone binary
+npm run tauri build
+```
+
+#### 3. Set Up Legacy Python CLI Client (Alternative)
 Make sure you have **Python 3.12+** installed. Install the required libraries:
 ```bash
 pip install sounddevice pyogg numpy

@@ -10,21 +10,44 @@ Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "   Installing Android Mic Bridge (miccpy)  " -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
 
-# 1. Check Python installation
-Write-Host "[1/6] Checking for Python..." -ForegroundColor Yellow
-if (!(Get-Command python -ErrorAction SilentlyContinue)) {
-    Write-Host "Python not found! Attempting to install via winget..." -ForegroundColor Cyan
-    try {
-        winget install Python.Python.3.12 --accept-source-agreements --accept-package-agreements
-        # Refresh env path for the current process
-        $env:PATH = [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [Environment]::GetEnvironmentVariable("PATH", "User")
-    } catch {
-        Write-Host "Automatic Python installation failed. Please install Python 3.12+ manually from https://python.org and run this script again." -ForegroundColor Red
-        Exit 1
+# 1. Check/Install Compiled Desktop App
+$AppInstalled = $false
+Write-Host "[1/6] Attempting to download the compiled desktop app from GitHub..." -ForegroundColor Yellow
+try {
+    $zipUrl = "https://github.com/typedbywill/amb/releases/latest/download/miccpy-windows-amd64.zip"
+    $zipPath = "$InstallDir\miccpy-windows.zip"
+    
+    # Try downloading the zip
+    Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
+    
+    Write-Host "Extracting miccpy.exe..." -ForegroundColor Gray
+    Expand-Archive -Path $zipPath -DestinationPath $InstallDir -Force
+    Remove-Item $zipPath -Force
+    
+    Write-Host "Compiled desktop app downloaded successfully." -ForegroundColor Green
+    $AppInstalled = $true
+} catch {
+    Write-Host "Could not download compiled app (no release published yet or network issue: $_)." -ForegroundColor Yellow
+    Write-Host "Falling back to Python script setup..." -ForegroundColor Yellow
+}
+
+if (!$AppInstalled) {
+    # Check Python installation
+    Write-Host "Checking for Python..." -ForegroundColor Yellow
+    if (!(Get-Command python -ErrorAction SilentlyContinue)) {
+        Write-Host "Python not found! Attempting to install via winget..." -ForegroundColor Cyan
+        try {
+            winget install Python.Python.3.12 --accept-source-agreements --accept-package-agreements
+            # Refresh env path for the current process
+            $env:PATH = [Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [Environment]::GetEnvironmentVariable("PATH", "User")
+        } catch {
+            Write-Host "Automatic Python installation failed. Please install Python 3.12+ manually from https://python.org and run this script again." -ForegroundColor Red
+            Exit 1
+        }
+    } else {
+        $pythonVersion = & python --version
+        Write-Host "Found Python: $pythonVersion" -ForegroundColor Green
     }
-} else {
-    $pythonVersion = & python --version
-    Write-Host "Found Python: $pythonVersion" -ForegroundColor Green
 }
 
 # 2. Create installation directory structure
@@ -36,19 +59,23 @@ if (!(Test-Path "$InstallDir\desktop")) {
     New-Item -ItemType Directory -Path "$InstallDir\desktop" | Out-Null
 }
 
-# 3. Download Client Scripts
+# 3. Download Client Scripts (only if not using compiled app)
 Write-Host "[3/6] Downloading miccpy client scripts..." -ForegroundColor Yellow
-try {
-    Write-Host "Downloading miccpy.py..." -ForegroundColor Gray
-    Invoke-WebRequest -Uri "$RepoUrl/desktop/miccpy.py" -OutFile "$InstallDir\desktop\miccpy.py" -UseBasicParsing
-    
-    Write-Host "Downloading miccpy.bat..." -ForegroundColor Gray
-    Invoke-WebRequest -Uri "$RepoUrl/miccpy.bat" -OutFile "$InstallDir\miccpy.bat" -UseBasicParsing
-    
-    Write-Host "Client scripts downloaded successfully." -ForegroundColor Green
-} catch {
-    Write-Host "Failed to download client scripts: $_" -ForegroundColor Red
-    Exit 1
+if (!$AppInstalled) {
+    try {
+        Write-Host "Downloading miccpy.py..." -ForegroundColor Gray
+        Invoke-WebRequest -Uri "$RepoUrl/desktop/miccpy.py" -OutFile "$InstallDir\desktop\miccpy.py" -UseBasicParsing
+        
+        Write-Host "Downloading miccpy.bat..." -ForegroundColor Gray
+        Invoke-WebRequest -Uri "$RepoUrl/miccpy.bat" -OutFile "$InstallDir\miccpy.bat" -UseBasicParsing
+        
+        Write-Host "Client scripts downloaded successfully." -ForegroundColor Green
+    } catch {
+        Write-Host "Failed to download client scripts: $_" -ForegroundColor Red
+        Exit 1
+    }
+} else {
+    Write-Host "Skipping script download since compiled app was installed." -ForegroundColor Green
 }
 
 # 4. Check/Install ADB (Android Debug Bridge)
@@ -84,20 +111,23 @@ if (!$adbPath) {
     Write-Host "Found system ADB at: $adbPath" -ForegroundColor Green
 }
 
-# 5. Install Python dependencies
-Write-Host "[5/6] Installing Python package dependencies (sounddevice, pyogg, numpy)..." -ForegroundColor Yellow
-try {
-    & python -m pip install --upgrade pip
-    & python -m pip install sounddevice pyogg numpy
-    Write-Host "Python packages installed successfully." -ForegroundColor Green
-} catch {
-    Write-Host "Warning: Some python packages failed to install. Please run 'pip install sounddevice pyogg numpy' manually." -ForegroundColor Yellow
+# 5. Install Python dependencies (only if not using compiled app)
+Write-Host "[5/6] Installing Python package dependencies..." -ForegroundColor Yellow
+if (!$AppInstalled) {
+    try {
+        & python -m pip install --upgrade pip
+        & python -m pip install sounddevice pyogg numpy
+        Write-Host "Python packages installed successfully." -ForegroundColor Green
+    } catch {
+        Write-Host "Warning: Some python packages failed to install. Please run 'pip install sounddevice pyogg numpy' manually." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "Skipping Python package installation." -ForegroundColor Green
 }
 
 # Try to fetch the Android app APK from releases
 try {
     Write-Host "Attempting to download latest miccpy Android APK..." -ForegroundColor Yellow
-    # Note: We will attempt to get it from GitHub releases. If they haven't uploaded it yet, we print a warning.
     $apkUrl = "https://github.com/typedbywill/amb/releases/latest/download/app-debug.apk"
     Invoke-WebRequest -Uri $apkUrl -OutFile "$InstallDir\miccpy.apk" -UseBasicParsing
     Write-Host "Android APK downloaded to: $InstallDir\miccpy.apk" -ForegroundColor Green
