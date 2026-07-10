@@ -327,13 +327,53 @@ def main():
             
             device_args = ["-s", selected_device]
             
+            # Check if Android app is installed, install it if missing and APK is found
+            package_name = "com.example.androidmicbridge"
+            is_installed = False
+            try:
+                packages_list = run_adb(device_args + ["shell", "pm", "list", "packages", package_name])
+                if f"package:{package_name}" in packages_list:
+                    is_installed = True
+            except Exception:
+                pass
+
+            if not is_installed:
+                print("Android Mic Bridge app not found on the device. Attempting to install...")
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                candidate_paths = [
+                    os.path.join(script_dir, "..", "miccpy.apk"), # Standard install layout (parent folder)
+                    os.path.join(script_dir, "..", "android", "app", "build", "outputs", "apk", "debug", "app-debug.apk"), # Dev build folder
+                    os.path.join(script_dir, "miccpy.apk"), # Same directory as script
+                ]
+                
+                apk_path = None
+                for path in candidate_paths:
+                    if os.path.exists(path):
+                        apk_path = os.path.abspath(path)
+                        break
+                
+                if apk_path:
+                    print(f"Found APK at: {apk_path}")
+                    print("Installing APK to device...")
+                    try:
+                        run_adb(device_args + ["install", "-r", apk_path])
+                        print("App installed successfully!")
+                    except Exception as install_err:
+                        print(f"Error: Failed to install APK: {install_err}")
+                        print("Please install the APK manually and run miccpy again.")
+                        sys.exit(1)
+                else:
+                    print("Error: Android app is not installed, and could not find 'miccpy.apk' to install automatically.")
+                    print("Please make sure miccpy.apk exists in the installation directory, or install it manually on the device.")
+                    sys.exit(1)
+
             # Grant permissions via ADB automatically
             print("Granting required permissions on Android device...")
             try:
-                run_adb(device_args + ["shell", "pm", "grant", "com.example.androidmicbridge", "android.permission.RECORD_AUDIO"])
+                run_adb(device_args + ["shell", "pm", "grant", package_name, "android.permission.RECORD_AUDIO"])
                 # POST_NOTIFICATIONS is Android 13+ only.
                 try:
-                    run_adb(device_args + ["shell", "pm", "grant", "com.example.androidmicbridge", "android.permission.POST_NOTIFICATIONS"])
+                    run_adb(device_args + ["shell", "pm", "grant", package_name, "android.permission.POST_NOTIFICATIONS"])
                 except Exception:
                     pass
             except Exception as e:
@@ -347,7 +387,7 @@ def main():
             print("Launching Android Mic Bridge app on device...")
             is_opus = "true" if args.codec == "opus" else "false"
             run_adb(device_args + [
-                "shell", "am", "start", "-n", "com.example.androidmicbridge/.MainActivity",
+                "shell", "am", "start", "-n", f"{package_name}/.MainActivity",
                 "--ez", "autostart", "true",
                 "--ez", "isOpus", is_opus,
                 "--ei", "sampleRate", str(args.rate),
